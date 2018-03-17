@@ -35,8 +35,8 @@ var lxr = (function(win, doc) {
     // 静态路由:对象; 动态路由:数组
     var staticRoutes = {},
         dynamicRoutes = [];
-    // 保存有别名的动态路由
-    var dynamicRouteMap = {};
+    // 保存有别名的路由
+    var RouteNamesMap = {};
     // hashchange 时, 保存上一条 hash
     var _current_route = null,
         _current_route_handle = null;
@@ -207,22 +207,18 @@ var lxr = (function(win, doc) {
     };
     win.onhashchange = hashChangeFn;
     return {
-        on: function(path, fn, hooks) {
-            if (fn && typeof fn === "object") {
-                hooks = fn;
-                fn = null;
-            }
-            if (isFunction(fn) && hooks) {
-                if (!hooks.enter) {
-                    hooks.enter = fn;
-                } else {
-                    var _enter = hooks.enter;
-                    hooks.enter = function(route) {
-                        fn(_enter(route));
-                    };
-                }
-            }
-            path = normalizeHash(path);
+        on: function(options) {
+            // new implement
+            // 当只有 enter 时, 直接将其作为 handle
+            var handle = (options.enter &&
+                !options.leave &&
+                !options.before &&
+                options.enter) || {
+                enter: options.enter,
+                before: options.before,
+                leave: options.leave
+            };
+            var path = normalizeHash(options.path);
             var isStatic = path.indexOf(":") < 0;
             if (isStatic) {
                 if (staticRoutes[path]) {
@@ -230,15 +226,26 @@ var lxr = (function(win, doc) {
                         "the route path: " + path + " is already existed."
                     );
                 }
-                staticRoutes[path] = fn || hooks;
+                staticRoutes[path] = handle;
+                if (options.name) {
+                    RouteNamesMap[options.name] = {
+                        path: path,
+                        handle: handle,
+                        isStatic: true
+                    };
+                }
             } else {
                 var transObj = transferDynamic(path);
-                dynamicRoutes.push({
+                var routeObj = {
                     path: path,
                     regexp: transObj.regexp,
                     paramNames: transObj.names,
-                    handle: fn || hooks
-                });
+                    handle: handle
+                };
+                dynamicRoutes.push(routeObj);
+                if (options.name) {
+                    RouteNamesMap[options.name] = routeObj;
+                }
             }
         },
         go: function(url) {},

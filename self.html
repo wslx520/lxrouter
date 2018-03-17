@@ -71,8 +71,9 @@
 			$menu.find('li').removeClass("active");
 			$menu.find(className).addClass("active");
 		}
-		var routes = {
-			"/": {
+		var routes = [
+			{
+				path: "/",
 				enter: function (route, next) {
 					$(".j-menus .home").addClass("active");
 					$(".j-app").html("<h2>HOME<h2>");
@@ -86,7 +87,8 @@
 					return false;
 				}
 			},
-			"/user": {
+			{
+				path: "/user",
 				enter: function (route, next) {
 					$(".j-app")[0].innerHTML = $("#user-tpl").html();
 					$(".j-menus .user").addClass("active");
@@ -103,25 +105,24 @@
 					$(".j-menus .user").removeClass("active");
 				}
 			},
-			// "/user/list": {
-			// 	url: "",
-			// 	enter: function (route, next) {
+			{
+				path: "/user/list",
+				parent: "/user",
+				enter: function (route, next) {
 
 
-			// 	}
-			// },
-			"/user/:id": {
+				}
+			},
+			{
+				path: "/user/:id",
 				enter: function (route, next) {
 					activeOne(".user-detail");
-					this.update(route, next);
-				},
-				// because the param.id may change. 
-				update: function (route, next) {
 					// update or enter, we need update the user infomation
 					$(".j-user").html("<h4><a href='#!/user'><< return list</a></h4>User " + route.params.id + "'s detail");
 				}
 			},
-			"/user/config": {
+			{
+				path: "/user/config",
 				enter: function (route, next) {
 					activeOne(".user-config");
 					$(".j-user").html("<p class='well'>user config page. <p><b>when you leave this page, you should confirm</b>");
@@ -136,10 +137,10 @@
 					return false;
 				}
 			}
-		};
-		for (var r in routes) {
-			lxr.on(r, routes[r]);
-		}
+		];
+		routes.forEach(function (route) {
+			lxr.on(route);
+		});
 		lxr.start();
 		// var stateman = new StateMan();
 
@@ -158,8 +159,96 @@
 		// 	.start({ html5: true, "root": "/layout.html" })
 
 
+		var a = {
+			before: function (route, next) {
+				console.log('a before!')
+				setTimeout(function () {
+					next(route)
+				}, 1000);
+				return false;
+			},
+			enter: function (route) {
+				console.log('a entered!')
+			}
+		};
+		var b = {
+			parent: a,
+			before: function (route, next) {
+				console.log('b before!')
+				setTimeout(function () {
+					next(route)
+				}, 1000);
+				return false;
+			},
+			enter: function (route) {
+				console.log('b entered!')
+			}
+		};
+		var c = {
+			parent: b,
+			before: function (route, next) {
+				console.log('c before!')
+				setTimeout(function () {
+					next(route)
+				}, 1000);
+				return false;
+			},
+			enter: function (route) {
+				console.log(' c entered!', route);
+			}
+		};
+		var fnChain = function (route) {
+			a.before(route, function (route) {
+				a.enter(route);
+				b.before(route, function (route) {
+					b.enter(route);
+					c.before(route, function (route) {
+						c.enter(route);
+					})
+				})
+			})
+		};
+		var getChain = function (rou) {
+			var routeArray = [rou];
+			var par = rou;
+			while (par = par.parent) {
+				routeArray.push(par);
 
+			}
+			console.log(routeArray);
+			// return function (routeArray) {
+			// reduceRight 的执行结果, 必须返回一个以 route 为参数的函数
+			return routeArray.reduceRight(function (first, second) {
+				var execute = function (route) {
+					if (second.before) {
+						second.before(route, function (route) {
+							second.enter(route);
+						})
+					} else {
+						second.enter(route);
+					}
+				};
+				console.log(first, second);
+				return function (route) {
+					var par = second.parent;
+					if (par.before) {
+						par.before(route, function (route) {
+							par.enter(route);
+							execute(route);
+						})
+						// par.enter(route);
+					} else if (par.enter) {
+						par.enter(route);
+					}
+				}
 
+			});
+			// }
+		};
+		// getChain(c);
+		// fnChain({ path: '/a/b/c' });
+		var autoChain = getChain(c);
+		autoChain({ path: '/haha/a/b/c' })
 	</script>
 </body>
 
