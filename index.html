@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Router</title>
+</head>
+<body>
+Router
+<a href="#!/list">list</a>
+<a href="#!/post">post</a>
+<div>
+    <ul>
+        <li><a href="#!/list/1">list - 1</a></li>
+        <li><a href="#!/list/2">list - 2</a></li>
+        <li><a href="#!/list/3">list - 3</a></li>
+    </ul>
+</div>
+<script src="router.js"></script>
+<script>
+//    var router = new Router();
+    router.add('/list', function () {
+        console.log('router: ', '/list');
+    });
+    router.add('/post', function () {
+        console.log('router: ', '/post');
+    });
+    router.add('/list/:id', function (id) {
+        console.log('router: ', '/list/:id', id, arguments);
+    });
+    router.start();
+    console.log(router.rules);
+</script>
+</body>
+</html>
