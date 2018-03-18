@@ -3,7 +3,7 @@
 
 <head>
 	<meta charset="UTF-8">
-	<script></script>
+	<title>router</title>
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/css/bootstrap.css">
 	<style>
 		body {
@@ -208,46 +208,34 @@
 				})
 			})
 		};
-		var getChain = function (rou) {
-			var routeArray = [rou];
-			var par = rou;
-			while (par = par.parent) {
-				routeArray.push(par);
-
-			}
-			console.log(routeArray);
+		var chain = function (curr, cb) {
+			return function (route) {
+				curr.before(route, function (route) {
+					curr.enter(route);
+					console.log(cb);
+					cb && cb(route);
+				})
+			};
+		};
+		var getChain = function (routeArray) {
 			// return function (routeArray) {
 			// reduceRight 的执行结果, 必须返回一个以 route 为参数的函数
-			return routeArray.reduceRight(function (first, second) {
-				var execute = function (route) {
-					if (second.before) {
-						second.before(route, function (route) {
-							second.enter(route);
-						})
-					} else {
-						second.enter(route);
-					}
-				};
-				console.log(first, second);
+			return routeArray.reduceRight(function (accu, curr, i, arr) {
+				console.log(accu, curr, i);
+				// return chain(curr, accu);
 				return function (route) {
-					var par = second.parent;
-					if (par.before) {
-						par.before(route, function (route) {
-							par.enter(route);
-							execute(route);
-						})
-						// par.enter(route);
-					} else if (par.enter) {
-						par.enter(route);
-					}
+					curr.before(route, function (route) {
+						curr.enter(route);
+						console.log(accu);
+						accu && accu(route);
+					})
 				}
-
-			});
+			}, null);
 			// }
 		};
 		// getChain(c);
 		// fnChain({ path: '/a/b/c' });
-		var autoChain = getChain(c);
+		var autoChain = getChain([a, b, c]);
 		autoChain({ path: '/haha/a/b/c' })
 	</script>
 </body>
