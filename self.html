@@ -33,7 +33,7 @@
 							<a href="#!/">home</a>
 						</li>
 						<li class='user'>
-							<a href="#!/user">user</a>
+							<a href="#!/user/list">user</a>
 						</li>
 					</ul>
 				</div>
@@ -50,7 +50,7 @@
   <div class="navbar-inner">
     <div class="container">
       <ul class="nav j-menu">
-        <li class='user-list'><a href="#!/user">list</a></li>
+        <li class='user-list'><a href="#!/user/list">list</a></li>
         <li class="user-detail"><a href="javascript:;">detail</a></li>
         <li class="user-config"><a href="#!/user/config">config</a></li>
       </ul>
@@ -76,7 +76,7 @@
 				path: "/",
 				enter: function (route, next) {
 					$(".j-menus .home").addClass("active");
-					$(".j-app").html("<h2>HOME<h2>");
+					$(".j-app").html("<h2>HOME</h2><p>如果使用嵌套路由,需保证路由链中均有 name</p>");
 				},
 				leave: function (route, next) {
 					$(".j-menus .home").removeClass("active");
@@ -89,9 +89,20 @@
 			},
 			{
 				path: "/user",
+				name: 'user',
 				enter: function (route, next) {
 					$(".j-app")[0].innerHTML = $("#user-tpl").html();
 					$(".j-menus .user").addClass("active");
+
+				},
+				leave: function (route, next) {
+					$(".j-menus .user").removeClass("active");
+				}
+			},
+			{
+				path: "/user/list",
+				parent: "user",
+				enter: function (route, next) {
 					// in real enviroment, you need a template engine to complete the work.
 					activeOne(".user-list");
 					var list = "<ul>";
@@ -100,29 +111,21 @@
 					}
 					list += "</ul>"
 					$(".j-user").html(list);
-				},
-				leave: function (route, next) {
-					$(".j-menus .user").removeClass("active");
-				}
-			},
-			{
-				path: "/user/list",
-				parent: "/user",
-				enter: function (route, next) {
-
 
 				}
 			},
 			{
 				path: "/user/:id",
+				parent: 'user',
 				enter: function (route, next) {
 					activeOne(".user-detail");
 					// update or enter, we need update the user infomation
-					$(".j-user").html("<h4><a href='#!/user'><< return list</a></h4>User " + route.params.id + "'s detail");
+					$(".j-user").html("<h4><a href='#!/user/list'><< return list</a></h4>User " + route.params.id + "'s detail");
 				}
 			},
 			{
 				path: "/user/config",
+				parent: 'user',
 				enter: function (route, next) {
 					activeOne(".user-config");
 					$(".j-user").html("<p class='well'>user config page. <p><b>when you leave this page, you should confirm</b>");
@@ -159,84 +162,6 @@
 		// 	.start({ html5: true, "root": "/layout.html" })
 
 
-		var a = {
-			before: function (route, next) {
-				console.log('a before!')
-				setTimeout(function () {
-					next(route)
-				}, 1000);
-				return false;
-			},
-			enter: function (route) {
-				console.log('a entered!')
-			}
-		};
-		var b = {
-			parent: a,
-			before: function (route, next) {
-				console.log('b before!')
-				setTimeout(function () {
-					next(route)
-				}, 1000);
-				return false;
-			},
-			enter: function (route) {
-				console.log('b entered!')
-			}
-		};
-		var c = {
-			parent: b,
-			before: function (route, next) {
-				console.log('c before!')
-				setTimeout(function () {
-					next(route)
-				}, 1000);
-				return false;
-			},
-			enter: function (route) {
-				console.log(' c entered!', route);
-			}
-		};
-		var fnChain = function (route) {
-			a.before(route, function (route) {
-				a.enter(route);
-				b.before(route, function (route) {
-					b.enter(route);
-					c.before(route, function (route) {
-						c.enter(route);
-					})
-				})
-			})
-		};
-		var chain = function (curr, cb) {
-			return function (route) {
-				curr.before(route, function (route) {
-					curr.enter(route);
-					console.log(cb);
-					cb && cb(route);
-				})
-			};
-		};
-		var getChain = function (routeArray) {
-			// return function (routeArray) {
-			// reduceRight 的执行结果, 必须返回一个以 route 为参数的函数
-			return routeArray.reduceRight(function (accu, curr, i, arr) {
-				console.log(accu, curr, i);
-				// return chain(curr, accu);
-				return function (route) {
-					curr.before(route, function (route) {
-						curr.enter(route);
-						console.log(accu);
-						accu && accu(route);
-					})
-				}
-			}, null);
-			// }
-		};
-		// getChain(c);
-		// fnChain({ path: '/a/b/c' });
-		var autoChain = getChain([a, b, c]);
-		autoChain({ path: '/haha/a/b/c' })
 	</script>
 </body>
 

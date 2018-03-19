@@ -96,19 +96,24 @@ var lxr = (function(win, doc) {
             // mmHistory.onHashChanged(href.replace(hashHead, ''), true);
         });
     };
-    var invokeRoute = function(handle, route) {
-        _current_route_handle = handle;
-        _current_route = route;
+    var invokeRoute = function(route, routeData) {
+        _current_route_handle = route;
+        _current_route = routeData;
+        if (route.parent && validRouteName.test(route.parent)) {
+            var chainCaller = getRouteInvokeChain(getRouteChain(route));
+            return chainCaller(routeData);
+        }
+        var handle = route.handle;
         if (isFunction(handle)) {
-            handle(route);
+            handle(routeData);
         } else {
             // handle 是 hooks 对象
             if (isFunction(handle.before)) {
-                handle.before(route, function(route) {
-                    handle.enter(route);
+                handle.before(routeData, function(routeData) {
+                    handle.enter(routeData);
                 });
             } else if (isFunction(handle.enter)) {
-                handle.enter(route);
+                handle.enter(routeData);
             }
         }
     };
@@ -139,13 +144,14 @@ var lxr = (function(win, doc) {
                         name = names[n];
                         params[name] = RegExp["$" + (n + 1)];
                     }
-                    invokeRoute(route.handle, {
+                    invokeRoute(route, {
                         href: hash,
                         path: hashPath,
                         search: searchObj,
                         qs: hashSearch,
                         params: params
                     });
+                    break;
                 }
                 // console.log(route, params);
             }
@@ -156,7 +162,7 @@ var lxr = (function(win, doc) {
         var paramNames = [];
         var regstr = path.replace(/:[a-z0-9]+/g, function(m) {
             paramNames.push(m.substr(1));
-            return "(\\w+)";
+            return "([\\w-]+)";
         });
         regstr = regstr + "$";
         console.log(regstr, RegExp(regstr));
@@ -181,6 +187,17 @@ var lxr = (function(win, doc) {
             });
         }
     };
+    var setHash = function(hash, replace) {
+        if (hash.substr(0, hashHead.length) !== hashHead) {
+            hash = hashHead + hash;
+        }
+        if (location.hash !== hash) {
+            if (replace) {
+                history.back();
+            }
+            location.hash = hash;
+        }
+    };
     var hashChangeFn = function(e) {
         e = e || win.event;
         console.log(location.hash);
@@ -194,18 +211,49 @@ var lxr = (function(win, doc) {
         hash = normalizeHash(hash);
         callRoute(hash);
     };
-    var setHash = function(hash, replace) {
-        if (hash.substr(0, hashHead.length) !== hashHead) {
-            hash = hashHead + hash;
-        }
-        if (location.hash !== hash) {
-            if (replace) {
-                history.back();
-            }
-            location.hash = hash;
-        }
-    };
     win.onhashchange = hashChangeFn;
+    var validRouteName = /^[\w-\.]+$/;
+    // 得到路由链
+    function getRouteChain(router) {
+        var chain = [router];
+        while ((router = router.parent)) {
+            chain.push(router);
+        }
+        return chain;
+    }
+    // 得到路由的 hooks 链调用函数
+    function getRouteInvokeChain(chain) {
+        console.log(chain);
+        // reduceRight 的执行结果, 必须返回一个以 route 为参数的函数
+        return chain.reduce(function(accu, curr, i, arr) {
+            // console.log(accu, curr, i);
+            // return chain(curr, accu);
+            return function(route) {
+                if (typeof curr === "string") {
+                    var name = curr;
+                    curr = RouteNamesMap[name];
+                    if (!curr) {
+                        throw new Error("Can not find route: " + name);
+                    }
+                }
+                var handle = curr.handle;
+                var next = function(route) {
+                    isFunction(handle) ? handle(route) : handle.enter(route);
+                    // curr.enter(route);
+                    // console.log(accu);
+                    // 如果不传 reduceRight 的第2个参数 null,
+                    // 则第1个 accu会变成 chain 的最后一个元素
+                    // 则这个判断要改一下
+                    accu && accu(route);
+                };
+                if (handle.before) {
+                    handle.before(route, next);
+                } else {
+                    next(route);
+                }
+            };
+        }, null);
+    }
     return {
         on: function(options) {
             // new implement
@@ -219,6 +267,14 @@ var lxr = (function(win, doc) {
                 leave: options.leave
             };
             var path = normalizeHash(options.path);
+            var routeObj = {
+                path: path,
+                name: options.name,
+                parent: options.parent,
+                // regexp: transObj.regexp,
+                // paramNames: transObj.names,
+                handle: handle
+            };
             var isStatic = path.indexOf(":") < 0;
             if (isStatic) {
                 if (staticRoutes[path]) {
@@ -226,26 +282,32 @@ var lxr = (function(win, doc) {
                         "the route path: " + path + " is already existed."
                     );
                 }
-                staticRoutes[path] = handle;
+                routeObj.isStatic = true;
+                staticRoutes[path] = routeObj;
                 if (options.name) {
-                    RouteNamesMap[options.name] = {
-                        path: path,
-                        handle: handle,
-                        isStatic: true
-                    };
+                    RouteNamesMap[options.name] = routeObj;
                 }
             } else {
                 var transObj = transferDynamic(path);
-                var routeObj = {
-                    path: path,
-                    regexp: transObj.regexp,
-                    paramNames: transObj.names,
-                    handle: handle
-                };
+                // 动态路由特有的
+                routeObj.regexp = transObj.regexp;
+                routeObj.paramNames = transObj.names;
+
                 dynamicRoutes.push(routeObj);
                 if (options.name) {
                     RouteNamesMap[options.name] = routeObj;
                 }
+            }
+            if (options.children) {
+                if (!options.name) {
+                    throw new Error(
+                        "You need a name for this route to add children to it"
+                    );
+                }
+                options.children.forEach(function(ops) {
+                    ops.parent = options.name;
+                    lxr.on(ops);
+                });
             }
         },
         go: function(url) {},
