@@ -76,7 +76,7 @@
 				path: "/",
 				enter: function (route, next) {
 					$(".j-menus .home").addClass("active");
-					$(".j-app").html("<h2>HOME</h2><p>如果使用嵌套路由,需保证路由链中均有 name</p>");
+					$(".j-app").html("<h2>HOME</h2><p>如果使用嵌套路由,需保证路由链中均有 name</p><p>离开此路由时,会触发1秒的延迟</p>");
 				},
 				leave: function (route, next) {
 					$(".j-menus .home").removeClass("active");
