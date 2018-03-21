@@ -388,7 +388,7 @@ var lxr = (function(win, doc) {
         }, null);
     }
     function getLeaveChain(chain, done) {
-        return chain.reduce(function(accu, curr, i) {
+        return chain.reduceRight(function(accu, curr, i) {
             return function(route) {
                 curr = getRouteByName(curr);
                 var leave = curr && curr.handle && curr.handle.leave;
