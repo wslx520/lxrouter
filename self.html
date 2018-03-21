@@ -130,22 +130,28 @@
 					// 	alert('不允许查询 user' + route.params.id);
 					// 	return false;
 					// }
-					next(route);
+					// next(route);
 				},
 				enter: function (route, next) {
+					console.log('user.detail entered!');
 					activeOne(".user-detail");
 					// update or enter, we need update the user infomation
-					$(".j-user").html("<h4><a href='#!/user/list'><< return list</a></h4>User " + route.params.id + "'s detail");
+					$(".j-user").html("<h4><a href='#!/user/list'><< return list</a></h4>\
+					<p>User " + route.params.id + "'s detail. <a href='#!/user/" + route.params.id + "/all'>show all</a></p>");
 				}
 			},
 			{
 				path: "/user/:id/all",
 				parent: 'user.detail',
-				// name: 'user.detail',
 				enter: function (route, next) {
-					activeOne(".user-detail");
+					// activeOne(".user-detail");
+					console.log('user.detail.all entered!');
 					// update or enter, we need update the user infomation
-					$(".j-user").html("<h4><a href='#!/user/list'><< return list</a></h4>User " + route.params.id + "'s detail");
+					$(".j-user").append("<div class='user-all'>用户: <b>" + route.params.id + "</b>的所有信息</div>");
+				},
+				leave: function (route) {
+					console.log('leaving user: ' + route.params.id + ' \'s all informations ');
+					$(".j-user .user-all").remove();
 				}
 			},
 			{

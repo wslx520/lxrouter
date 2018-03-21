@@ -31,6 +31,7 @@ var lxr = (function(win, doc) {
           };
     // util functions end
     var hashHead = '#!',
+        previousHash = null,
         // 当点击链接触发路由时, 此变量为 true
         DRIVED_BY_CLICK = false,
         normalizeHash = function(hash) {
@@ -125,23 +126,33 @@ var lxr = (function(win, doc) {
                 var relate = route.relate;
                 if (relate == 'up') {
                     if (!route.name) {
-                        action(route);
+                        return action(route);
                     } else {
-                        setCurrentRoute(route, routeData);
+                        return setCurrentRoute(route, routeData);
                     }
                 } else if (relate === 'down' && _current_route.path != '/') {
+                    if (route.parent === _current_route.name) {
+                        return action(route);
+                    }
                     var chainCaller = getRouteInvokeChain(
-                        getRouteUtil(route, _current_route)
+                        getRouteUtil(route, _current_route, true),
+                        function() {
+                            setCurrentRoute(route, routeData);
+                        }
                     );
-                    setCurrentRoute(route, routeData);
                     return chainCaller(routeData);
                 } else if (relate === 'same') {
                     return action(route);
                 }
             }
             if (route.parent && validRouteName.test(route.parent)) {
-                var chainCaller = getRouteInvokeChain(getRouteChain(route));
-                setCurrentRoute(route, routeData);
+                var chainCaller = getRouteInvokeChain(
+                    getRouteChain(route),
+                    function() {
+                        setCurrentRoute(route, routeData);
+                    }
+                );
+
                 return chainCaller(routeData);
             }
             function action(route) {
@@ -209,8 +220,8 @@ var lxr = (function(win, doc) {
         // transferDynamic("/path/:id/:action");
         // 在去下一个路由前, 检查上一个路由的 hooks , 并执行其中的 leave. 参数是要去的目的 hash
         checkLeave = function(hash, click) {
-            console.log(hash, _current_route);
-            var relate = checkRelation(hash, _current_route.path);
+            console.log(hash, _current_route, _current_route_data);
+            var relate = checkRelation(hash, _current_route_data.path);
             console.log(relate);
             _next_route = getRouteByHash(hash);
             _next_route.relate = relate;
@@ -308,6 +319,8 @@ var lxr = (function(win, doc) {
             e = e || win.event;
             // console.log(location.hash);
             var hash = location.hash;
+            if (hash === previousHash) return;
+            previousHash = hash;
             hash = hash.substr(hashHead.length);
             if (!hash) return;
             // console.log(hash);
@@ -323,10 +336,7 @@ var lxr = (function(win, doc) {
 
             callRoute(hash);
         };
-    // console.log(checkRelation('/user/2', '/user/config'));
-    // console.log(checkRelation('/user/2', '/user/list'));
-    // console.log(checkRelation('/user/2', '/'));
-    // console.log(checkRelation('/user', '/user/3'));
+    console.log(checkRelation('/user/1', '/user/1/all'));
     win.onhashchange = hashChangeFn;
     // 得到路由链
     function getRouteChain(router) {
@@ -337,15 +347,20 @@ var lxr = (function(win, doc) {
         return chain;
     }
     // 一直取到对应的上级路由为止
-    function getRouteUtil(router, par) {
-        if (router.parent === par) {
+    function getRouteUtil(router, par, stopbefore) {
+        if (router.parent === par || router.parent === par.name) {
             return [router, par];
         }
         var chain = [router];
-        while ((router = RouteNamesMap[router.parent]) && router.name != par) {
+        while (
+            (router = RouteNamesMap[router.parent]) &&
+            (router.name != par || router != par)
+        ) {
             chain.push(router);
         }
-        chain.push(par);
+        if (!stopbefore) {
+            chain.push(par);
+        }
         return chain;
     }
     function getRouteByName(name) {
@@ -359,9 +374,9 @@ var lxr = (function(win, doc) {
         return curr;
     }
     // 得到路由的 hooks 链调用函数
-    function getRouteInvokeChain(chain) {
+    function getRouteInvokeChain(chain, done) {
         // console.log(chain);
-        // reduceRight 的执行结果, 必须返回一个以 route 为参数的函数
+        // reduce 的执行结果, 必须返回一个以 route 为参数的函数
         return chain.reduce(function(accu, curr, i, arr) {
             // console.log(accu, curr, i);
             // return chain(curr, accu);
@@ -372,7 +387,7 @@ var lxr = (function(win, doc) {
                     isFunction(handle) ? handle(route) : handle.enter(route);
                     // curr.enter(route);
                     // console.log(accu);
-                    // 如果不传 reduceRight 的第2个参数 null,
+                    // 如果不传 reduce 的第2个参数 null,
                     // 则第1个 accu会变成 chain 的最后一个元素
                     // 则这个判断要改一下
                     accu && accu(route);
@@ -385,9 +400,11 @@ var lxr = (function(win, doc) {
                 }
                 next(route);
             };
-        }, null);
+        }, done || null);
     }
     function getLeaveChain(chain, done) {
+        // leaveChain使用 reduceRight ,因为是最底层的leave最先执行
+
         return chain.reduceRight(function(accu, curr, i) {
             return function(route) {
                 curr = getRouteByName(curr);
