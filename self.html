@@ -76,12 +76,16 @@
 				path: "/",
 				enter: function (route, next) {
 					$(".j-menus .home").addClass("active");
-					$(".j-app").html("<h2>HOME</h2><p>如果使用嵌套路由,需保证路由链中均有 name</p><p>离开此路由时,会触发1秒的延迟</p>");
+					$(".j-app").html("<h2>HOME</h2>\
+					<p>如果使用嵌套路由,需保证路由链中均有 name</p>\
+					<p>离开此路由时,会触发1秒的延迟</p>");
 				},
 				leave: function (route, next) {
-					$(".j-menus .home").removeClass("active");
 					// return false can prevent leave! util you invoke `next` manually
 					setTimeout(function () {
+						$(".j-menus .home").removeClass("active");
+						console.log('left home!')
+						// 如果leave()返回false, 则不调用 next 的话, 就不会离开
 						next();
 					}, 1000);
 					return false;
@@ -94,9 +98,12 @@
 					$(".j-app")[0].innerHTML = $("#user-tpl").html();
 					$(".j-menus .user").addClass("active");
 
+					console.log('user entered!');
 				},
 				leave: function (route, next) {
+					console.log('user left!');
 					$(".j-menus .user").removeClass("active");
+					// next();
 				}
 			},
 			{
@@ -117,6 +124,24 @@
 			{
 				path: "/user/:id",
 				parent: 'user',
+				name: 'user.detail',
+				before: function (route, next) {
+					// if (route.params.id == 3) {
+					// 	alert('不允许查询 user' + route.params.id);
+					// 	return false;
+					// }
+					next(route);
+				},
+				enter: function (route, next) {
+					activeOne(".user-detail");
+					// update or enter, we need update the user infomation
+					$(".j-user").html("<h4><a href='#!/user/list'><< return list</a></h4>User " + route.params.id + "'s detail");
+				}
+			},
+			{
+				path: "/user/:id/all",
+				parent: 'user.detail',
+				// name: 'user.detail',
 				enter: function (route, next) {
 					activeOne(".user-detail");
 					// update or enter, we need update the user infomation
