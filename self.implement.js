@@ -12,11 +12,6 @@ var lxr = (function(win, doc) {
             var count = 1;
             while ((index = str.indexOf(char, (index += char.length))) !== -1) {
                 count += 1;
-                // index += char.length;
-                // console.log(index, count, str.substr(index));
-                // if (count > 5) {
-                //     break;
-                // }
             }
         }
         return count || 0;
@@ -112,13 +107,17 @@ var lxr = (function(win, doc) {
                 e.preventDefault();
                 // }
                 DRIVED_BY_CLICK = true;
-                var hash = href.substr(hashHead.length);
-                var canLeave = checkLeave(hash, true);
+                console.log(href, previousHash);
+                if (href != previousHash) {
+                    var hash = href.substr(hashHead.length);
+                    var canLeave = checkLeave(hash, true);
+                }
             });
         },
         setCurrentRoute = function(route, routeData) {
             _current_route = route;
             _current_route_data = routeData;
+            _next_route && (_next_route.relate = null);
         },
         invokeRoute = function(route, routeData) {
             console.log(_current_route, route);
@@ -156,24 +155,17 @@ var lxr = (function(win, doc) {
                 return chainCaller(routeData);
             }
             function action(route) {
-                var handle = route.handle;
-                if (isFunction(handle)) {
-                    handle(routeData);
+                var enter = function(routeData) {
+                    isFunction(route.enter) && route.enter(routeData);
                     setCurrentRoute(route, routeData);
-                } else {
-                    var enter = function(routeData) {
-                        isFunction(handle.enter) && handle.enter(routeData);
-                        setCurrentRoute(route, routeData);
-                    };
-                    // handle 是 hooks 对象
-                    if (isFunction(handle.before)) {
-                        var allow = handle.before(routeData, enter);
-                        if (allow === false) {
-                            return false;
-                        }
+                };
+                if (isFunction(route.before)) {
+                    var allow = route.before(routeData, enter);
+                    if (allow === false) {
+                        return false;
                     }
-                    enter(routeData);
                 }
+                enter(routeData);
             }
             action(route);
         },
@@ -201,6 +193,7 @@ var lxr = (function(win, doc) {
                 });
                 routeData.params = params;
             }
+            previousHash = hashHead + hash;
             return invokeRoute(route, routeData);
         },
         // transfer /path/:id/:action
@@ -244,16 +237,17 @@ var lxr = (function(win, doc) {
                 } else {
                     // 同级时, 只触发当前路由的 leave
                     if (relate === 'same') {
-                        if (_current_route && _current_route.handle) {
+                        if (_current_route) {
                             if (
-                                isFunction(_current_route.handle.leave) &&
+                                isFunction(_current_route.leave) &&
                                 _current_route_data &&
                                 _current_route_data.href != hash
                             ) {
-                                return _current_route.handle.leave(
+                                var can = _current_route.leave(
                                     _current_route_data,
                                     defaultNext
                                 );
+                                if (can === false) return false;
                             }
                             defaultNext(_current_route_data);
                         }
@@ -286,6 +280,7 @@ var lxr = (function(win, doc) {
                     return 'same';
                 }
             }
+            // 还有一种有共同上级的情况: /user/config 与 /user/2/all
             // }
         },
         // 通过 hash 获得路由
@@ -320,7 +315,6 @@ var lxr = (function(win, doc) {
             // console.log(location.hash);
             var hash = location.hash;
             if (hash === previousHash) return;
-            previousHash = hash;
             hash = hash.substr(hashHead.length);
             if (!hash) return;
             // console.log(hash);
@@ -382,18 +376,15 @@ var lxr = (function(win, doc) {
             // return chain(curr, accu);
             return function(route) {
                 curr = getRouteByName(curr);
-                var handle = curr.handle;
                 var next = function(route) {
-                    isFunction(handle) ? handle(route) : handle.enter(route);
-                    // curr.enter(route);
-                    // console.log(accu);
+                    curr.enter(route);
                     // 如果不传 reduce 的第2个参数 null,
                     // 则第1个 accu会变成 chain 的最后一个元素
                     // 则这个判断要改一下
                     accu && accu(route);
                 };
-                if (handle.before) {
-                    var can = handle.before(route, next);
+                if (curr.before) {
+                    var can = curr.before(route, next);
                     if (can === false) {
                         return false;
                     }
@@ -408,7 +399,7 @@ var lxr = (function(win, doc) {
         return chain.reduceRight(function(accu, curr, i) {
             return function(route) {
                 curr = getRouteByName(curr);
-                var leave = curr && curr.handle && curr.handle.leave;
+                var leave = curr && curr.leave;
                 var go = function(route) {
                     // console.log(accu);
                     accu && accu(route);
@@ -426,24 +417,8 @@ var lxr = (function(win, doc) {
     return {
         on: function(options) {
             // new implement
-            // 当只有 enter 时, 直接将其作为 handle
-            var handle = (options.enter &&
-                !options.leave &&
-                !options.before &&
-                options.enter) || {
-                enter: options.enter,
-                before: options.before,
-                leave: options.leave
-            };
             var path = normalizeHash(options.path);
-            var routeObj = {
-                path: path,
-                name: options.name,
-                parent: options.parent,
-                // regexp: transObj.regexp,
-                // paramNames: transObj.names,
-                handle: handle
-            };
+            options.path = path;
             var isStatic = path.indexOf(':') < 0;
             if (isStatic) {
                 if (staticRoutes[path]) {
@@ -451,20 +426,20 @@ var lxr = (function(win, doc) {
                         'the route path: ' + path + ' is already existed.'
                     );
                 }
-                routeObj.isStatic = true;
-                staticRoutes[path] = routeObj;
+                options.isStatic = true;
+                staticRoutes[path] = options;
                 if (options.name) {
-                    RouteNamesMap[options.name] = routeObj;
+                    RouteNamesMap[options.name] = options;
                 }
             } else {
                 var transObj = transferDynamic(path);
                 // 动态路由特有的
-                routeObj.regexp = transObj.regexp;
-                routeObj.paramNames = transObj.names;
+                options.regexp = transObj.regexp;
+                options.paramNames = transObj.names;
 
-                dynamicRoutes.push(routeObj);
+                dynamicRoutes.push(options);
                 if (options.name) {
-                    RouteNamesMap[options.name] = routeObj;
+                    RouteNamesMap[options.name] = options;
                 }
             }
             if (options.children) {

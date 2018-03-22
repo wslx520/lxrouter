@@ -110,6 +110,7 @@
 				path: "/user/list",
 				parent: "user",
 				enter: function (route, next) {
+					console.log('user.list entered!')
 					// in real enviroment, you need a template engine to complete the work.
 					activeOne(".user-list");
 					var list = "<ul>";
@@ -119,6 +120,9 @@
 					list += "</ul>"
 					$(".j-user").html(list);
 
+				},
+				leave: function () {
+					console.log('user.list left!');
 				}
 			},
 			{
@@ -130,6 +134,7 @@
 					// 	alert('不允许查询 user' + route.params.id);
 					// 	return false;
 					// }
+					console.log('before user.detail enter!');
 					// next(route);
 				},
 				enter: function (route, next) {
