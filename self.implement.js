@@ -27,6 +27,10 @@ var lxr = (function(win, doc) {
     // util functions end
     var hashHead = '#!',
         previousHash = null,
+        // 嵌套路由关系常量
+        _UP_ = '_UP_',
+        _DOWN_ = '_DOWN_',
+        _SAME_ = '_SAME_',
         // 当点击链接触发路由时, 此变量为 true
         DRIVED_BY_CLICK = false,
         normalizeHash = function(hash) {
@@ -123,25 +127,29 @@ var lxr = (function(win, doc) {
             console.log(_current_route, route);
             if (route.relate) {
                 var relate = route.relate;
-                if (relate == 'up') {
+                if (relate == _UP_) {
                     if (!route.name) {
                         return action(route);
                     } else {
                         return setCurrentRoute(route, routeData);
                     }
-                } else if (relate === 'down' && _current_route.path != '/') {
-                    if (route.parent === _current_route.name) {
+                } else if (relate === _SAME_) {
+                    return action(route);
+                } else {
+                    var name =
+                        relate === _DOWN_ && _current_route.path != '/'
+                            ? _current_route.name
+                            : relate;
+                    if (route.parent === name) {
                         return action(route);
                     }
                     var chainCaller = getRouteInvokeChain(
-                        getRouteUtil(route, _current_route, true),
+                        getRouteUtil(route, name, true),
                         function() {
                             setCurrentRoute(route, routeData);
                         }
                     );
                     return chainCaller(routeData);
-                } else if (relate === 'same') {
-                    return action(route);
                 }
             }
             if (route.parent && validRouteName.test(route.parent)) {
@@ -224,7 +232,7 @@ var lxr = (function(win, doc) {
                 setHash(hash);
             }
             // 当即将进入的是当前路由的下级路由, 不触发 leave
-            if (relate === 'down' && _current_route.path !== '/') {
+            if (relate === _DOWN_ && _current_route.path !== '/') {
                 defaultNext();
             } else {
                 // 无关或下一个路由没有 name 时, 触发所有leave
@@ -236,7 +244,7 @@ var lxr = (function(win, doc) {
                     leaveChain(_current_route_data);
                 } else {
                     // 同级时, 只触发当前路由的 leave
-                    if (relate === 'same') {
+                    if (relate === _SAME_) {
                         if (_current_route) {
                             if (
                                 isFunction(_current_route.leave) &&
@@ -251,13 +259,27 @@ var lxr = (function(win, doc) {
                             }
                             defaultNext(_current_route_data);
                         }
-                    } else {
+                    } else if (relate === _UP_) {
                         // 上级时, 找到终止路由, 并触发之间的 leave
                         leaveChain = getLeaveChain(
                             getRouteUtil(_current_route, _next_route.name),
                             defaultNext
                         );
                         leaveChain(_current_route_data);
+                    } else {
+                        var commonParent = getRouteByHash(relate);
+                        if (commonParent) {
+                            leaveChain = getLeaveChain(
+                                getRouteUtil(
+                                    _current_route,
+                                    commonParent.name,
+                                    true
+                                ),
+                                defaultNext
+                            );
+                            leaveChain(_current_route_data);
+                            _next_route.relate = commonParent.name;
+                        }
                     }
                 }
             }
@@ -269,18 +291,29 @@ var lxr = (function(win, doc) {
             // if (hash1.length != hash2.length) {
             if (hash1.substr(0, hash2.length) == hash2) {
                 // hash1 是 hash2 的下级路由
-                return 'down';
+                return _DOWN_;
             } else if (hash2.substr(0, hash1.length) == hash1) {
-                return 'up';
+                return _UP_;
             }
             var last1 = getLastIndex(hash1, '/'),
                 last2 = getLastIndex(hash2, '/');
             if (last1 === last2 && last1 !== -1) {
                 if (hash1.substring(0, last1) == hash2.substring(0, last2)) {
-                    return 'same';
+                    return _SAME_;
                 }
             }
-            // 还有一种有共同上级的情况: /user/config 与 /user/2/all
+            // 还有一种有共同上级的情况: /user/config 与 /user/2/all, 同属 /user 之下
+            if (hash1.charAt(0) === '/') {
+                var slash = 0,
+                    match = false;
+                while ((slash = hash1.indexOf('/', slash + 1)) != -1) {
+                    var part = hash1.substring(0, slash);
+                    if (hash2.indexOf(part) === 0) {
+                        match = part;
+                    }
+                }
+                return match;
+            }
             // }
         },
         // 通过 hash 获得路由
@@ -348,7 +381,7 @@ var lxr = (function(win, doc) {
         var chain = [router];
         while (
             (router = RouteNamesMap[router.parent]) &&
-            (router.name != par || router != par)
+            (router.name != par && router != par)
         ) {
             chain.push(router);
         }
@@ -412,7 +445,7 @@ var lxr = (function(win, doc) {
                 }
                 go(route);
             };
-        }, done);
+        }, done || null);
     }
     return {
         on: function(options) {
